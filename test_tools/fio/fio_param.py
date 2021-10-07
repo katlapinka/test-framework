@@ -224,6 +224,9 @@ class FioParam(LinuxCommand):
     def random_distribution(self, value):
         return self.set_param('random_distribution', value)
 
+    def random_generator(self, value):
+        return self.set_param('random_generator', value)
+
     def rand_repeat(self, value: int):
         return self.set_param('randrepeat', value)
 
