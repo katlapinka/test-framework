@@ -6,6 +6,7 @@
 import pytest
 import sys
 import importlib
+import signal
 from core.test_run import TestRun
 
 
@@ -88,3 +89,36 @@ class PluginManager:
         if name not in self.plugins:
             raise KeyError("Requested plugin does not exist")
         return self.plugins[name]
+
+    def teardown_on_signal(self, sig_id, plugin_name):
+        try:
+            plugin = self.get_plugin(plugin_name)
+        except Exception as e:
+            TestRun.LOGGER.warning(
+                f"Failed to setup teardown on signal for {plugin_name}. Reason: {e}")
+            return
+
+        old_sig_handler = None
+
+        def signal_handler(sig, frame):
+            plugin.teardown()
+
+            if old_sig_handler is not None:
+                if old_sig_handler == signal.SIG_DFL:
+                    # In case of SIG_DFL the function pointer points to address 0,
+                    # which is not a valid address.
+                    # We have to reset the handler and raise the signal again
+                    signal.signal(sig, signal.SIG_DFL)
+                    signal.raise_signal(sig)
+                    signal.signal(sig, signal_handler)
+                elif old_sig_handler == signal.SIG_IGN:
+                    # SIG_IGN has value 1 (also an invalid address).
+                    # Here we can just return (do nothing)
+                    return
+                else:
+                    # When we received neither SIG_IGN nor SIG_DFL, the received value is
+                    # a valid function pointer and we can call the handler directly
+                    old_sig_handler()
+                signal.signal(sig, old_sig_handler)
+
+        old_sig_handler = signal.signal(sig_id, signal_handler)
